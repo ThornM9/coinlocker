@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity 0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -18,7 +20,7 @@ contract EthLocker is Ownable {
   }
   uint nextId = 1;
 
-  mapping(address => Deposit[]) private userDeposits;
+  mapping(address => uint[]) private userDeposits;
   mapping(uint => Deposit) private idToDeposit;
   PriceFeedInterface private priceFeed;
 
@@ -46,7 +48,7 @@ contract EthLocker is Ownable {
       lockUntilPrice: _lockUntilPrice,
       amount: msg.value
     });
-    userDeposits[msg.sender].push(deposit);
+    userDeposits[msg.sender].push(deposit.id);
     idToDeposit[nextId] = deposit;
     nextId++;
   }
@@ -55,7 +57,7 @@ contract EthLocker is Ownable {
     return idToDeposit[id];
   }
 
-  function getUserDeposits(address user) external view returns (Deposit[] memory) {
+  function getUserDeposits(address user) external view returns (uint[] memory) {
     return userDeposits[user];
   }
 

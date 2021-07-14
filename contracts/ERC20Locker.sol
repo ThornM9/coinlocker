@@ -1,11 +1,10 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity 0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-
-interface PriceFeedInterface {
-    function latestRoundData() external view returns (uint80 roundId,int256 answer,uint256 startedAt,uint256 updatedAt,uint80 answeredInRound);
-}
+import "./PriceFeedInterface.sol";
 
 contract ERC20Locker is Ownable {
   struct Deposit {
@@ -21,7 +20,7 @@ contract ERC20Locker is Ownable {
   }
   uint nextId = 1;
 
-  mapping(address => Deposit[]) private userDeposits;
+  mapping(address => uint[]) private userDeposits;
   mapping(uint => Deposit) private idToDeposit;
 
   function getPrice(uint id) public view returns (uint) {
@@ -31,6 +30,7 @@ contract ERC20Locker is Ownable {
   }
 
   function createDeposit(address _priceFeedAddress, address _tokenAddress, uint _amount, uint _lockDays, uint _lockUntilPrice) external {
+    require(_amount > 0, "Token amount must be greater than 0");
     ERC20 token = ERC20(_tokenAddress);
     token.transferFrom(msg.sender, address(this), _amount);
     Deposit memory deposit = Deposit({
@@ -44,7 +44,7 @@ contract ERC20Locker is Ownable {
       amount: _amount,
       priceFeed: PriceFeedInterface(_priceFeedAddress)
     });
-    userDeposits[msg.sender].push(deposit);
+    userDeposits[msg.sender].push(deposit.id);
     idToDeposit[nextId] = deposit;
     nextId++;
   }
@@ -53,13 +53,13 @@ contract ERC20Locker is Ownable {
     return idToDeposit[id];
   }
 
-  function getUserDeposits(address user) external view returns (Deposit[] memory) {
+  function getUserDeposits(address user) external view returns (uint[] memory) {
     return userDeposits[user];
   }
 
   function canRedeemDeposit(uint id) public view returns (bool) {
     Deposit memory deposit = idToDeposit[id];
-    if (deposit.lockedAt + deposit.lockDays <= block.timestamp) { return false; }
+    if (deposit.lockedAt + (deposit.lockDays * 1 days) > block.timestamp) { return false; }
     if (getPrice(id) <= deposit.lockUntilPrice) { return false; }
 
     return true;
@@ -73,6 +73,7 @@ contract ERC20Locker is Ownable {
 
   function redeemDeposit(uint id) external {
     Deposit storage deposit = idToDeposit[id];
+    require(msg.sender == deposit.depositor, "Only the depositor can redeem their deposit");
     require(canRedeemDeposit(id), "Deposit cannot be redeemed yet");
     require(!deposit.redeemed, "Deposit has already been redeemed");
 
