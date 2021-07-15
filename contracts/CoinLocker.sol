@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./PriceFeedInterface.sol";
 
-contract ERC20Locker is Ownable {
+contract CoinLocker is Ownable {
   struct Deposit {
     address depositor;
     address tokenAddress;
