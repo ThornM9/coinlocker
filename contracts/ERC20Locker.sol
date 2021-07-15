@@ -29,10 +29,9 @@ contract ERC20Locker is Ownable {
     return uint(price);
   }
 
-  function createDeposit(address _priceFeedAddress, address _tokenAddress, uint _amount, uint _lockDays, uint _lockUntilPrice) external {
-    require(_amount > 0, "Token amount must be greater than 0");
-    ERC20 token = ERC20(_tokenAddress);
-    token.transferFrom(msg.sender, address(this), _amount);
+  function createDeposit(address _priceFeedAddress, address _tokenAddress, uint _amount, uint _lockDays, uint _lockUntilPrice) external payable {
+    require(_amount > 0 || _tokenAddress == address(0x0), "Token amount must be greater than 0");
+    require(!(_tokenAddress != address(0x0) && msg.value > 0), "Invalid deposit");
     Deposit memory deposit = Deposit({
       depositor: msg.sender,
       tokenAddress: _tokenAddress,
@@ -44,6 +43,19 @@ contract ERC20Locker is Ownable {
       amount: _amount,
       priceFeed: PriceFeedInterface(_priceFeedAddress)
     });
+    
+    if (_tokenAddress == address(0x0)) {
+      // accept eth as a deposit if token address set to 0
+      require(msg.value > 0, "ETH deposit required");
+      deposit.amount = msg.value;
+    } else {
+      // else accept erc20 deposit
+      ERC20 token = ERC20(_tokenAddress);
+      token.transferFrom(msg.sender, address(this), _amount);
+    }
+    // check price feed works
+    deposit.priceFeed.latestRoundData();
+
     userDeposits[msg.sender].push(deposit.id);
     idToDeposit[nextId] = deposit;
     nextId++;
@@ -67,8 +79,12 @@ contract ERC20Locker is Ownable {
 
   function _redeem(Deposit storage deposit) internal {
     deposit.redeemed = true; // prevent re-entrancy attack by redeeming before sending
-    ERC20 token = ERC20(deposit.tokenAddress);
-    token.transfer(deposit.depositor, deposit.amount);
+    if (deposit.tokenAddress == address(0x0)) {
+      payable(deposit.depositor).transfer(deposit.amount);
+    } else {
+      ERC20 token = ERC20(deposit.tokenAddress);
+      token.transfer(deposit.depositor, deposit.amount);
+    }
   }
 
   function redeemDeposit(uint id) external {
